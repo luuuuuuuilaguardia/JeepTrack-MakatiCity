@@ -1,0 +1,195 @@
+{
+  "info": {
+    "name": "Jeepney Route Tracker",
+    "_postman_id": "jeepney-12345",
+    "description": "Postman collection for Jeepney Route Tracker backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register Commuter",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type","value": "application/json"}],
+            "url": "{{baseUrl}}/api/v1/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Luis Laguardia\",\n  \"email\": \"commuter@example.com\",\n  \"password\": \"123456\",\n  \"role\": \"commuter\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Register Driver",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type","value": "application/json"}],
+            "url": "{{baseUrl}}/api/v1/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Driver Juan\",\n  \"email\": \"driver@example.com\",\n  \"password\": \"123456\",\n  \"role\": \"driver\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type","value": "application/json"}],
+            "url": "{{baseUrl}}/api/v1/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"commuter@example.com\",\n  \"password\": \"123456\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Driver",
+      "item": [
+        {
+          "name": "Update Location",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type","value": "application/json"},
+              {"key": "Authorization","value": "Bearer {{jwt}}"}
+            ],
+            "url": "{{baseUrl}}/api/v1/driver/location",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jeepId\": \"{{jeepId}}\",\n  \"lat\": 14.5123,\n  \"lng\": 121.0345,\n  \"speed\": 10,\n  \"heading\": 90\n}"
+            }
+          }
+        },
+        {
+          "name": "Update Status",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type","value": "application/json"},
+              {"key": "Authorization","value": "Bearer {{jwt}}"}
+            ],
+            "url": "{{baseUrl}}/api/v1/driver/status",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jeepId\": \"{{jeepId}}\",\n  \"status\": \"online\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Update Passenger Count",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type","value": "application/json"},
+              {"key": "Authorization","value": "Bearer {{jwt}}"}
+            ],
+            "url": "{{baseUrl}}/api/v1/driver/passenger-count",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jeepId\": \"{{jeepId}}\",\n  \"count\": 12\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Commuter",
+      "item": [
+        {
+          "name": "Get Active Jeeps",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization","value": "Bearer {{jwt}}"}],
+            "url": "{{baseUrl}}/api/v1/commuter/jeeps?route=FTI-GUADALUPE"
+          }
+        },
+        {
+          "name": "Auto Boarding",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Authorization","value": "Bearer {{jwt}}"},{"key":"Content-Type","value":"application/json"}],
+            "url": "{{baseUrl}}/api/v1/commuter/board-detection",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"jeepId\": \"{{jeepId}}\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Routes",
+      "item": [
+        {
+          "name": "Get All Routes",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/routes"
+          }
+        },
+        {
+          "name": "Get Stops By Route",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/routes/{{routeId}}/stops"
+          }
+        },
+        {
+          "name": "Add Route",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Authorization","value": "Bearer {{jwt}}"},{"key":"Content-Type","value":"application/json"}],
+            "url": "{{baseUrl}}/api/v1/routes",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"FTI → Guadalupe\",\n  \"color\": \"#FF0000\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Add Stop",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Authorization","value": "Bearer {{jwt}}"},{"key":"Content-Type","value":"application/json"}],
+            "url": "{{baseUrl}}/api/v1/routes/stops",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"routeId\": \"{{routeId}}\",\n  \"name\": \"FTI Terminal\",\n  \"lat\": 14.5123,\n  \"lng\": 121.0345,\n  \"sequence\": 1\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Analytics",
+      "item": [
+        {
+          "name": "Get Congestion",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/analytics/congestion"
+          }
+        },
+        {
+          "name": "Get ETA",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/v1/analytics/eta"
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {"key": "baseUrl","value": "http://localhost:3000"},
+    {"key": "jwt","value": ""},
+    {"key": "userId","value": ""},
+    {"key": "jeepId","value": ""},
+    {"key": "routeId","value": ""}
+  ]
+}
