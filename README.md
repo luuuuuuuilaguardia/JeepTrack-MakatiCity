@@ -1,4 +1,4 @@
-````markdown
+
 # Jeepney Route Tracker – Open Source Project
 A real-time jeepney tracking, auto-boarding detection, and commuter information system built using **Flutter**, **Node.js (Express)**, and **MongoDB**, with **Leaflet** for maps.
 
@@ -368,7 +368,3 @@ Submit PRs, open issues, or help refine mapping + route logic.
 # License
 
 MIT
-
-```
-
-```
