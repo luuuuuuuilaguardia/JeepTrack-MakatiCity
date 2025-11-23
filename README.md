@@ -1,280 +1,374 @@
-# JeepTrak (placeholder)
+````markdown
+# Jeepney Route Tracker – Open Source Project
+A real-time jeepney tracking, auto-boarding detection, and commuter information system built using **Flutter**, **Node.js (Express)**, and **MongoDB**, with **Leaflet** for maps.
 
-An open-source mobile + backend system to help commuters and jeepney drivers coordinate along a route (example: **FTI → Guadalupe**). This repo contains the specification, architecture, API, boarding-detection algorithm, and developer onboarding instructions to build an MVP. Uses **Leaflet** for maps (no paid map provider required) and **no BLE** hardware requirement.
-
-> This repository is a product-spec / starter-kit for developers who want to contribute to a real-world pilot. It contains everything needed to implement the commuter and driver mobile apps, backend services, and an admin console.
-
----
-
-## Key goals
-
-* Show live jeepney locations and ETAs along a route.
-* Auto-detect when a commuter boards/disembarks a jeep using **GPS + motion correlation + time thresholds** (no BLE).
-* Provide driver-side tools (go online/offline, update capacity) and commuter UI (track jeep, in-ride info, SOS).
-* Ready for a small pilot (10–50 vehicles) and easy to extend.
+This README is ready for GitHub and includes:  
+✔ Project overview  
+✔ Architecture  
+✔ Features  
+✔ Database schema (MongoDB)  
+✔ API overview  
+✔ Sprint plan / project management  
+✔ Contribution guide (optional)  
 
 ---
 
-## Table of Contents
+# Project Overview
+The Jeepney Route Tracker is a mobile + backend system that enables:  
+- **Real-time jeepney tracking** from driver → commuter  
+- **Auto-boarding detection** based purely on GPS logic (no BLE)  
+- **Route + stops visualization** using Leaflet  
+- **Passenger volume estimates**  
+- **ETA computation** per stop
 
-1. [Project Overview](#project-overview)
-2. [Architecture](#architecture)
-3. [Core Features](#core-features)
-4. [Boarding Detection Algorithm](#boarding-detection-algorithm)
-5. [Data Model (summary)](#data-model-summary)
-6. [API Endpoints (example)](#api-endpoints-example)
-7. [Frontend Notes](#frontend-notes)
-8. [Dev Setup (local)](#dev-setup-local)
-9. [Deployment](#deployment)
-10. [Testing and Pilot Plan](#testing-and-pilot-plan)
-11. [Contribution Guide](#contribution-guide)
-12. [Roadmap & Ideas](#roadmap--ideas)
-13. [License](#license)
+This aims to modernize public transport visibility in your city, starting with the **FTI → Guadalupe** route.
 
 ---
 
-## Project Overview
+# Tech Stack
+## **Frontend (Mobile)**
+- **Flutter**
+- Dart
+- Leaflet (via Flutter Leaflet plugins)
+- Provider / Riverpod / Bloc (any state management)
 
-JeepTrak aims to make daily commuting easier for jeepney riders and drivers. Riders can see nearby jeepneys on a route, get ETAs, and have the app auto-detect boarding and disembark events. Drivers share live GPS to appear on rider maps and can update capacity.
+## **Backend**
+- **Node.js** (v18+)
+- **Express.js**
+- WebSockets (Socket.IO or ws)
+- JWT Auth
 
-This repository is intended as an open-source starting point for community developers, universities, or transit volunteers to experiment and run pilots.
+## **Database**
+- **MongoDB** (Cloud MongoDB Atlas recommended)
+- Mongoose ODM
 
----
-
-## Architecture
-
-* **Mobile clients**: React Native (recommended) or Flutter — single codebase for Android/iOS.
-* **Maps**: Leaflet (webviews or React Native Leaflet bindings) and OpenStreetMap tiles (or self-hosted tiles).
-* **Realtime**: WebSockets (Socket.IO, or native WebSocket) for live GPS and events.
-* **Backend services**:
-
-  * Auth & User management (phone OTP)
-  * Location ingestion service (high-frequency for drivers)
-  * Boarding detection microservice (stateless, scalable)
-  * API server (REST for standard CRUD)
-  * Admin console (React)
-* **Datastore**: PostgreSQL for relational data; Redis for ephemeral state (possible occupancy cache).
-* **Optional analytics**: ClickHouse / BigQuery for timeseries/analytics.
+## **Maps**
+- **Leaflet** (OpenStreetMap)
 
 ---
 
-## Core Features
+# 🗄️ MongoDB Database Schema
+Below is a clean, production-ready NoSQL schema.
 
-### Commuter App
+## **users**
+```json
+{
+  _id: ObjectId, 
+  name: String,
+  email: String,
+  passwordHash: String,
+  role: "commuter" | "driver" | "admin",
+  createdAt: Date,
+  updatedAt: Date
+}
+````
 
-* OTP phone login
-* Route list & map (Leaflet)
-* Live list of online jeepneys with ETA to stops
-* Auto-detect boarding (GPS-driven) and in-ride screen
-* Manual "I’m on board" and "I just disembarked" overrides
-* Favorite stops, arrival notifications
-* Fare estimator, SOS/report feature
+## **jeepneys**
 
-### Driver App
-
-* Register & verify (plate number, minimal KYC)
-* Go Online / Go Offline toggle
-* High-frequency GPS streaming (1–3s)
-* Update capacity and status
-* View waiting volumes at upcoming stops (crowd-sourced)
-* See detected onboard riders with an option to correct
-
-### Admin Console
-
-* Manage routes & stops
-* Approve drivers
-* Live map of all jeeps
-* Analytics & incident management
-
----
-
-## Boarding Detection Algorithm
-
-**No BLE**. Core idea: combine proximity, vehicle speed, time-in-zone, and movement correlation.
-
-### Configurable parameters (example)
-
-```txt
-PROXIMITY_FIRST = 8 meters
-PROXIMITY_LOCK = 4 meters
-STAY_SECONDS = 6 seconds
-JEEP_STOP_SPEED = 5 km/h
-COMMUTER_WALK_SPEED = 2 m/s
-MOVEMENT_WINDOW = 12 seconds
-DISAMBARK_DISTANCE = 12 meters
+```json
+{
+  _id: ObjectId,
+  driverId: ObjectId, // FK → users
+  plateNumber: String,
+  routeId: ObjectId, // FK → routes
+  capacity: Number,
+  status: "online" | "offline",
+  createdAt: Date
+}
 ```
 
-### Flow (high-level)
+## **routes**
 
-1. Driver streams location frequently (1–3s). Commuters stream location less frequently (3–10s when not active; higher when near a stop or expecting).
-2. If `distance <= PROXIMITY_FIRST` and `jeep.speed <= JEEP_STOP_SPEED` and `user.speed <= COMMUTER_WALK_SPEED`, mark *Possible Boarding*.
-3. If user persists within `PROXIMITY_LOCK` for `STAY_SECONDS` while jeep remains slow, mark *Close Proximity Lock*.
-4. When jeep resumes movement, compare the next `MOVEMENT_WINDOW` samples: if commuter and jeep headings and speed-changes correlate and distance stays within `3-5m`, **confirm boarding**.
-5. For disembark: detect when jeep stops and commuter's distance increases beyond `DISAMBARK_DISTANCE` for a small window (5s) → confirm disembark.
-
-### Pseudocode (simplified)
-
-```python
-# called when new location samples arrive
-if d <= PROXIMITY_FIRST and jeep.speed <= JEEP_STOP_SPEED and user.speed <= COMMUTER_WALK_SPEED:
-    create_possible_boarding(user, jeep)
-
-# background check
-if possible_boarding.duration >= STAY_SECONDS and distance <= PROXIMITY_LOCK:
-    set_state(user, jeep, 'CLOSE_PROXIMITY_LOCK')
-
-# on jeep movement resume
-collect_samples(window=MOVEMENT_WINDOW)
-if movement_correlation(user_samples, jeep_samples) and distance <= 5m:
-    confirm_boarding(user, jeep)
-else:
-    notify_user('Ambiguous detection, please confirm')
+```json
+{
+  _id: ObjectId,
+  name: String,
+  color: String,
+  createdAt: Date
+}
 ```
 
-### Notes & improvements
+## **route_stops**
 
-* Use a Kalman filter to smooth GPS noise.
-* Implement a scoring function for multiple nearby jeeps; pick the highest score.
-* Respect user privacy: only collect location with consent; allow clearing history.
-
----
-
-## Data Model (summary)
-
-Tables (simplified):
-
-* `users` (user_id, phone, name, created_at)
-* `drivers` (driver_id, name, plate, verified, created_at)
-* `jeeps` (jeep_id, driver_id, route_id, status)
-* `routes` (route_id, name, direction)
-* `stops` (stop_id, route_id, name, lat, lng, seq)
-* `location_streams` (ephemeral, not persisted long-term)
-* `boardings` (event logs, user_id, jeep_id, type, confidence, timestamp)
-* `reports` (incidents/reports)
-
----
-
-## API Endpoints (examples)
-
-Standard REST + WebSocket channels for realtime location:
-
-* `POST /auth/request-otp` { phone }
-* `POST /auth/verify-otp` { phone, otp }
-* `GET /routes` → list routes
-* `GET /routes/:id/stops` → list stops
-* `GET /jeeps?route={id}` → online jeeps
-* `POST /driver/:id/location` → driver GPS (high freq)
-* `POST /user/:id/location` → user GPS (adaptive freq)
-* `POST /boardings/:user_id/confirm` → manual confirm
-* `POST /reports` → incident report
-
-Realtime channels (WebSocket):
-
-* `jeeps:route:{route_id}` — broadcast jeep locations
-* `user:{user_id}:events` — personal events (boarding prompts, confirmations)
-
----
-
-## Frontend Notes (Leaflet)
-
-* Use Leaflet + OpenStreetMap tiles. For React Native, use a WebView wrapping a small Leaflet app or use community Leaflet bindings.
-* Marker clustering for routes with many jeeps.
-* Use polylines to draw route and stops; show ETA bubbles near stops.
-* Keep the boarding-detection prompts subtle (toast or small banner) and provide a single-tap undo.
-
-Tile usage: consider a tile usage policy (cache tiles, limit refresh). For pilot, use public OSM tiles carefully; consider third-party tile providers or self-hosted tiles if scale requires.
-
----
-
-## Dev Setup (local) — Example
-
-This section shows a suggested local setup to run the backend and a mock frontend.
-
-### Prerequisites
-
-* Node.js >= 18
-* PostgreSQL >= 13
-* Redis
-* Docker (optional)
-
-### Environment variables (example `.env`)
-
-```
-PORT=4000
-DATABASE_URL=postgres://user:pass@localhost:5432/jeeptrak
-REDIS_URL=redis://localhost:6379
-JWT_SECRET=your_jwt_secret
-WS_SECRET=your_ws_secret
-LEAFLET_TILE_URL=https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png
+```json
+{
+  _id: ObjectId,
+  routeId: ObjectId,
+  name: String,
+  lat: Number,
+  lng: Number,
+  sequence: Number
+}
 ```
 
-### Run locally (backend)
+## **jeepney_locations** (real-time)
 
-```bash
-# clone repo
-npm install
-# run migrations
-npm run db:migrate
-# start server
-npm run dev
+```json
+{
+  _id: ObjectId,
+  jeepneyId: ObjectId,
+  lat: Number,
+  lng: Number,
+  speed: Number,
+  heading: Number,
+  isStopped: Boolean,
+  timestamp: Date
+}
 ```
 
-### Run frontend (example react web app with Leaflet)
+## **boardings**
 
-```bash
-cd frontend
-npm install
-npm run start
+```json
+{
+  _id: ObjectId,
+  userId: ObjectId,
+  jeepneyId: ObjectId,
+  routeId: ObjectId,
+  boardStopId: ObjectId,
+  boardTime: Date,
+  method: "auto" | "manual"
+}
+```
+
+## **disembarkings**
+
+```json
+{
+  _id: ObjectId,
+  userId: ObjectId,
+  jeepneyId: ObjectId,
+  routeId: ObjectId,
+  dropStopId: ObjectId,
+  dropTime: Date,
+  method: "auto" | "manual"
+}
 ```
 
 ---
 
-## Deployment
+# API Overview (Express.js)
 
-* Use containerized deployments (Docker). One container for API, one for detection microservice, one for WebSocket/ingestion service.
-* Use managed Postgres (RDS/Cloud SQL) and Redis (Elasticache/MemoryStore).
-* Use a load balancer for WebSocket traffic (e.g., AWS ALB with sticky sessions or use Socket.IO cluster + Redis adapter).
-* Use a logging & monitoring stack (Sentry, Prometheus/Grafana).
+This is the top-level outline.
 
----
+## **Auth**
 
-## Testing & Pilot Plan
+```
+POST /auth/signup
+POST /auth/login
+```
 
-1. Unit test detection logic using synthetic GPS tracks (simulate boarding / non-boarding scenarios).
-2. Integration test entire flow with mocked websocket streams.
-3. Field pilot: 10–20 jeepneys on the FTI → Guadalupe route for 4 weeks.
+## **Routes + Stops**
 
-   * Metrics to measure: detection accuracy (TP/FP/FN), battery usage, network usage, driver adoption.
-4. Iterate thresholds based on pilot data.
+```
+GET /routes
+GET /routes/:id/stops
+```
 
----
+## **Driver**
 
-## Contribution Guide
+```
+POST /driver/go-online
+POST /driver/go-offline
+POST /driver/location/update
+```
 
-* Please open an issue for feature requests or bugs.
-* Fork the repository and create topic branches per feature.
-* Write tests for new logic (especially detection algorithm changes).
-* Follow the code style (eslint/prettier) and include changelog entries for breaking changes.
-* Maintain privacy-first defaults for any new feature involving location data.
+## **Commuter**
 
----
+```
+GET /commuter/jeepneys
+POST /commuter/location/update
+```
 
-## Roadmap & Ideas
+## **Boarding Events**
 
-* Fare payment integration (GCash / PayMaya / Cards)
-* Expand to other routes/cities
-* Driver analytics dashboard (profit, utilization)
-* Offline mode & low-power adaptive location sampling
-* Enhanced crowd estimation using anonymized boarding logs
-
----
-
-## License
-
-This project is released under the **MIT License** — see `LICENSE` for details.
+```
+POST /boarding/confirm-manual
+POST /boarding/deny
+```
 
 ---
 
-## Contact
+# Auto-Boarding Detection Logic
 
-If you want to pilot, test, or contribute — open an issue or reach out through the repo issues. Good luck and thank you for helping improve urban mobility!
+**No BLE. No NFC. Pure GPS.**
+
+### **Phases:**
+
+1. **Proximity Detection** (≤ 8 meters)
+2. **Stop Detection** (jeep speed < 5 km/h)
+3. **Close Proximity Lock** (4m for 5-8 sec)
+4. **Movement Synchronization**
+
+   * same direction
+   * similar speed
+   * distance ≤ 3–5m for ≥ 10 sec
+5. **Auto-Onboard State Enabled**
+6. **Auto-Disembark** when distance increases past ≥12m once jeep stops
+
+---
+
+# Project Architecture
+
+```
+/mobile
+  /lib
+    /screens
+    /services
+    /providers
+    /models
+    /widgets
+/server
+  /src
+    /controllers
+    /routes
+    /models
+    /services
+    /utils
+/maps
+  fti_guadalupe_route.json
+README.md
+```
+
+---
+
+# Agile Project Plan (Sprints)
+
+Below is the **complete JIRA-style sprint board**.
+
+---
+
+# Sprint 1 — Foundation (Week 1–2)
+
+### **Goals:**
+
+* Flutter app skeleton
+* Express backend setup
+* MongoDB schema created
+* Route + stops displayed in Leaflet
+* Auth working
+
+### **Tasks:**
+
+#### Mobile
+
+* [ ] Setup Flutter project
+* [ ] Implement login/signup
+* [ ] Map screen + Leaflet integration
+* [ ] Display route + stops
+
+#### Backend
+
+* [ ] Setup Express project
+* [ ] Create MongoDB connection + models
+* [ ] Implement Auth API
+* [ ] Implement Routes/Stops API
+
+#### Admin
+
+* [ ] Jeepney registration
+
+---
+
+# Sprint 2 — Live Tracking (Week 3–4)
+
+### **Goals:**
+
+* Driver GPS streaming
+* WebSocket live jeep tracking
+* Commuter sees jeep locations
+
+### **Tasks:**
+
+#### Driver App
+
+* [ ] Background GPS updates
+* [ ] Send to server every 2–3 seconds
+
+#### Backend
+
+* [ ] Implement WebSocket server
+* [ ] Store latest location in jeepney_locations
+
+#### Commuter App
+
+* [ ] Listen to WebSocket
+* [ ] Render jeep markers
+* [ ] Smooth animations
+
+---
+
+# Sprint 3 — Auto-Boarding Detection (Week 5–6)
+
+### **Goals:**
+
+* Full GPS-based auto-boarding
+* Commuter on-board screen
+* Driver occupancy tracking
+
+### **Tasks:**
+
+#### Backend Logic
+
+* [ ] Proximity detection layer
+* [ ] Movement correlation algorithm
+* [ ] Event generator → boardings collection
+
+#### Mobile
+
+* [ ] Auto-onboard UI
+* [ ] Override (“I’m on board”) button
+* [ ] “Not my jeep” error handler
+
+---
+
+# Sprint 4 — ETA + Passenger Volume (Week 7–8)
+
+### **Goals:**
+
+* Stop ETA
+* Occupancy analytics
+* Final UX polish
+
+### **Tasks:**
+
+#### Volume
+
+* [ ] Active boarding counter
+* [ ] Occupancy map updates
+
+#### ETA
+
+* [ ] Stop-to-stop calculations
+* [ ] Display ETA list
+
+#### Polish
+
+* [ ] Map UI enhancements
+* [ ] Dark mode
+
+---
+
+# Optional Sprint 5 — Deployment (Week 9–10)
+
+### Tasks:
+
+* [ ] Deploy backend to production
+* [ ] Release mobile app
+* [ ] Final documentation
+
+---
+
+# Contributing
+
+This project is open for contributions!
+Submit PRs, open issues, or help refine mapping + route logic.
+
+---
+
+# License
+
+MIT
+
+```
+
+```
