@@ -1,8 +1,3 @@
-# JeepTrack-MakatiCity
-This repository is a product-spec / starter-kit for developers who want to contribute to a real-world pilot. It contains everything needed to implement the commuter and driver mobile apps, backend services, and an admin console.
-
-
-
 # JeepTrak (placeholder)
 
 An open-source mobile + backend system to help commuters and jeepney drivers coordinate along a route (example: **FTI → Guadalupe**). This repo contains the specification, architecture, API, boarding-detection algorithm, and developer onboarding instructions to build an MVP. Uses **Leaflet** for maps (no paid map provider required) and **no BLE** hardware requirement.
